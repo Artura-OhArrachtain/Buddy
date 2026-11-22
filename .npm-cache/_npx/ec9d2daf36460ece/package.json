@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@microsoft/jsts-upgrade-assistant": "^0.1.19"
+  }
+}

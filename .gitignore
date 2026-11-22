@@ -1,0 +1,12 @@
+# Python / Virtual Environment
+venv/
+__pycache__/
+*.pyc
+
+# Sensitive Credentials
+.env
+
+# Local Notes/Archives if you don't want them tracked publicly
+# (Optional, comment out if you want to track them)
+# notes/
+# archives/
