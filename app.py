@@ -143,89 +143,100 @@ with st.sidebar:
     else:
         st.caption("No notes saved yet in `notes/`.")
 
-import streamlit as st
-
-# Create tabbed artifact layout
-chat_tab, artifact_tab = st.tabs(["💬 Chat", "📄 Code Artifact"])
-
-with chat_tab:
-    st.write("Conversation stream goes here...")
-    user_input = st.text_input("Ask Buddy...")
-
-with artifact_tab:
-    st.subheader("Generated Output Preview")
-    sample_code = "def greet(name):\n    return f'Hello, {name}!'"
-    
-    # Clean container mimicking an artifact card
-    with st.container(border=True):
-        st.code(sample_code, language="python")
-        # Streamlit's st.code() natively provides a built-in copy-to-clipboard button in the top right corner
-
-# --- Main Chat Window ---
+# --- Main Chat Window & Artifacts Layout ---
 st.title("🤖 Buddy")
-st.caption("Local AI Assistant • Dark Mode • Internet Search • File Actions & Tool Simulation")
+st.caption("Local AI Assistant • Dark Mode • Internet Search • File Actions & XML Parsing")
+
+# Claude-style Tabbed Artifact Interface
+chat_tab, artifact_tab = st.tabs(["💬 Chat Stream", "📄 Code Artifacts & Preview"])
 
 current_chat = st.session_state.current_session
 messages = st.session_state.sessions[current_chat]
 
-# Display conversation history
-for msg in messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+with chat_tab:
+    # Display conversation history
+    for msg in messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
 
-# Persistent chat input at the bottom
-if prompt := st.chat_input("Ask Buddy or command tools (e.g., 'search: ...', 'save note: ...'):"):
-    messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
+    # Persistent chat input at the bottom of the chat tab
+    if prompt := st.chat_input("Ask Buddy or command tools (e.g., 'search: ...', 'save note: ...'):"):
+        messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
 
-    # Auto-name chat session
-    if current_chat.startswith("Chat ") and len(messages) == 2:
-        new_title = prompt[:25] + "..." if len(prompt) > 25 else prompt
-        st.session_state.sessions[new_title] = messages
-        del st.session_state.sessions[current_chat]
-        st.session_state.current_session = new_title
-        current_chat = new_title
+        # Auto-name chat session
+        if current_chat.startswith("Chat ") and len(messages) == 2:
+            new_title = prompt[:25] + "..." if len(prompt) > 25 else prompt
+            st.session_state.sessions[new_title] = messages
+            del st.session_state.sessions[current_chat]
+            st.session_state.current_session = new_title
+            current_chat = new_title
 
-    # Generate response and handle advanced tool/file execution
-    with st.chat_message("assistant"):
-        with st.spinner("Thinking, searching & executing tools..."):
-            try:
-                search_context = ""
-                # Trigger live web search automatically or via prefix
-                if prompt.lower().startswith("search:") or "latest" in prompt.lower() or "news" in prompt.lower() or "current" in prompt.lower():
-                    search_query = prompt.replace("search:", "").strip()
-                    web_results = web_search(search_query)
-                    search_context = f"\n\n[Live Web Search Results for '{search_query}':\n{web_results}]\n"
+        # Generate response and handle advanced tool/file execution
+        with st.chat_message("assistant"):
+            with st.spinner("Thinking, searching & executing tools..."):
+                try:
+                    search_context = ""
+                    # Trigger live web search automatically or via prefix
+                    if prompt.lower().startswith("search:") or "latest" in prompt.lower() or "news" in prompt.lower() or "current" in prompt.lower():
+                        search_query = prompt.replace("search:", "").strip()
+                        web_results = web_search(search_query)
+                        search_context = f"\n\n[Live Web Search Results for '{search_query}':\n{web_results}]\n"
 
-                system_prompt = (
-                    "You are Buddy, an advanced local AI assistant with dark mode styling, internet search capability, "
-                    "and structured file action tools. Incorporate search context when relevant."
-                )
-                
-                chat_messages = [{"role": "system", "content": system_prompt + search_context}] + messages
-                response = ollama.chat(model='gemma:2b', messages=chat_messages)
-                reply = response['message']['content']
-                
-                # --- ADVANCED STRUCTURED TOOL SIMULATION & FILE ACTIONS ---
-                timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                
-                # File Writing / Note Saving Tool
-                if "save" in prompt.lower() or "note" in prompt.lower():
-                    file_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    filename = f"note_{file_timestamp}.md"
-                    filepath = os.path.join(NOTES_DIR, filename)
-                    note_body = f"# Note saved at {timestamp_str}\n\n**Prompt:** {prompt}\n\n{reply}"
-                    with open(filepath, "w") as f:
-                        f.write(note_body)
-                    reply += f"\n\n*(📁 [File Action]: Response automatically written & saved to `notes/{filename}`)*"
+                    system_prompt = (
+                        "You are Buddy, an advanced local AI assistant with dark mode styling, internet search capability, "
+                        "and structured file action tools. Incorporate search context when relevant."
+                    )
+                    
+                    # Using our XML structured prompt builder helper
+                    formatted_system = build_structured_prompt(
+                        system_rules=system_prompt,
+                        context_data=search_context if search_context else "No external context required.",
+                        user_query=prompt
+                    )
+                    
+                    chat_messages = [{"role": "system", "content": formatted_system}] + messages
+                    response = ollama.chat(model='gemma:2b', messages=chat_messages)
+                    reply = response['message']['content']
+                    
+                    # --- ADVANCED STRUCTURED TOOL SIMULATION & FILE ACTIONS ---
+                    timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    
+                    # File Writing / Note Saving Tool
+                    if "save" in prompt.lower() or "note" in prompt.lower():
+                        file_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        filename = f"note_{file_timestamp}.md"
+                        filepath = os.path.join(NOTES_DIR, filename)
+                        note_body = f"# Note saved at {timestamp_str}\n\n**Prompt:** {prompt}\n\n{reply}"
+                        with open(filepath, "w") as f:
+                            f.write(note_body)
+                        reply += f"\n\n*(📁 [File Action]: Response automatically written & saved to `notes/{filename}`)*"
 
-                # Timestamp Logging Tool simulation
-                if "log" in prompt.lower() or "time" in prompt.lower():
-                    reply += f"\n\n*(⏱️ [Timestamp Tool Log]: Action recorded at {timestamp_str})*"
+                    # Timestamp Logging Tool simulation
+                    if "log" in prompt.lower() or "time" in prompt.lower():
+                        reply += f"\n\n*(⏱️ [Timestamp Tool Log]: Action recorded at {timestamp_str})*"
 
-                st.markdown(reply)
-                messages.append({"role": "assistant", "content": reply})
-                
-            except Exception as e:
-                st.error(f"Error: {e}")
+                    st.markdown(reply)
+                    messages.append({"role": "assistant", "content": reply})
+                    
+                except Exception as e:
+                    st.error(f"Error: {e}")
+
+with artifact_tab:
+    st.subheader("Generated Output & Code Artifacts")
+    st.caption("Inspect snippets, standalone documents, or code blocks generated during your session.")
+    
+    # Grab the last assistant message if available to display as an artifact preview, or show default sample
+    last_assistant_content = ""
+    for m in reversed(messages):
+        if m["role"] == "assistant":
+            last_assistant_content = m["content"]
+            break
+            
+    with st.container(border=True):
+        if last_assistant_content:
+            st.markdown(last_assistant_content)
+        else:
+            sample_code = "def greet(name):\n    return f'Hello, {name}!'"
+            st.code(sample_code, language="python")
