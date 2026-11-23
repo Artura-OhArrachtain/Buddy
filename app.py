@@ -78,6 +78,21 @@ def web_search(query):
     except Exception as e:
         return f"Web search error: {e}"
 
+def build_structured_prompt(system_rules, context_data, user_query):
+    return f"""
+<instructions>
+{system_rules}
+</instructions>
+
+<context>
+{context_data}
+</context>
+
+<user_input>
+{user_query}
+</user_input>
+"""
+
 # Initialize session state
 if "sessions" not in st.session_state:
     st.session_state.sessions = {"New Chat": []}
@@ -127,6 +142,24 @@ with st.sidebar:
             st.text_area("Note Content", note_content, height=180)
     else:
         st.caption("No notes saved yet in `notes/`.")
+
+import streamlit as st
+
+# Create tabbed artifact layout
+chat_tab, artifact_tab = st.tabs(["💬 Chat", "📄 Code Artifact"])
+
+with chat_tab:
+    st.write("Conversation stream goes here...")
+    user_input = st.text_input("Ask Buddy...")
+
+with artifact_tab:
+    st.subheader("Generated Output Preview")
+    sample_code = "def greet(name):\n    return f'Hello, {name}!'"
+    
+    # Clean container mimicking an artifact card
+    with st.container(border=True):
+        st.code(sample_code, language="python")
+        # Streamlit's st.code() natively provides a built-in copy-to-clipboard button in the top right corner
 
 # --- Main Chat Window ---
 st.title("🤖 Buddy")
